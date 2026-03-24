@@ -7,12 +7,13 @@ import openmm.unit as openmmunit
 def run_simulation( results_path: str = "output",
                     pdb_fname: str = None,
                     system_fname: str = None,
-                    membrane_protein: bool = False, 
+                    membrane_protein: bool = False,
                     traj_write_freq: int = 25000,
                     time_step: float = 0.004,
                     temperature: float = 300,
                     simulation_steps: int = 25000000, # 100ns at 4fs time step
-                    seed: int = None
+                    seed: int = None,
+                    gpu_id: int = 0
                     ):
     """_summary_
 
@@ -34,6 +35,8 @@ def run_simulation( results_path: str = "output",
     :type simulation_steps: int, optional
     :param seed: random seed for reproducibility, defaults to None
     :type seed: int, optional
+    :param gpu_id: GPU device index to use for CUDA platform, defaults to 0
+    :type gpu_id: int, optional
     :raises ValueError: different checks are performed and expections are raised if some of the fail.
     """
 
@@ -60,7 +63,7 @@ def run_simulation( results_path: str = "output",
         platform = openmm.Platform.getPlatformByName("CUDA")
         platform.setPropertyDefaultValue('DeterministicForces', 'true')
         platform.setPropertyDefaultValue('CudaPrecision', 'mixed')
-        platform.setPropertyDefaultValue('CudaDeviceIndex', '0')
+        platform.setPropertyDefaultValue('CudaDeviceIndex', str(gpu_id))
         print('Using GPU:CUDA')
     except: 
         try:

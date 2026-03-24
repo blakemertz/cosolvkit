@@ -41,7 +41,11 @@ def cmd_lineparser():
     parser.add_argument(
         "--iteratively_adjust_copies", action="store_true", default=False
     )
- 
+    parser.add_argument(
+        "--gpu_id", type=int, default=0,
+        help="GPU device index to use for CUDA simulations (default: 0)"
+    )
+
     return parser.parse_args()
 
 def main():
@@ -189,9 +193,10 @@ def main():
                         traj_write_freq = args.traj_write_freq,
                         time_step = args.time_step,
                         temperature=args.temperature,
-                        simulation_steps = args.num_simulation_steps, 
+                        simulation_steps = args.num_simulation_steps,
                         results_path = config.output_dir,
-                        seed=None
+                        seed=None,
+                        gpu_id=args.gpu_id
         )
         logger.info(f"Simulation finished after {(time.time() - start)/60:.2f} min.")
     return
