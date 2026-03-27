@@ -184,7 +184,8 @@ def main():
         
         logger.info("Running MD simulation")
         start = time.time()
-        pdb_fname = os.path.join(config.output_dir, "system.pdb")
+        pos_ext = MD_FORMAT_EXTENSIONS['OPENMM']['position']
+        pdb_fname = os.path.join(config.output_dir, f"system{pos_ext}")
         system_fname = os.path.join(config.output_dir, "system.xml")
         run_simulation(
                         pdb_fname = pdb_fname,

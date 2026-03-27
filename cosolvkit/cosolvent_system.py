@@ -358,20 +358,22 @@ class CosolventSystem(object):
         return
 
     def save_pdb(self, topology: app.Topology, positions: list, out_path: str):
-        """Saves the specified topology and position to the out_path file.
+        """Saves the specified topology and positions to the out_path file in mmCIF format.
+
+        mmCIF is used instead of PDB to avoid atom serial and residue number overflow
+        for large systems (>99,999 atoms or >9,999 residues).
 
         :param topology: topology used
         :type topology: openmm.app.Topology
         :param positions: list of 3D coords
         :type positions: list
-        :param out_path: path to where to save the dile
+        :param out_path: path to where to save the file (.cif)
         :type out_path: str
         """
-        app.PDBFile.writeFile(
+        app.PDBxFile.writeFile(
             topology,
             positions,
-            open(out_path, "w"),
-            keepIds=True
+            open(out_path, "w")
         )
         return
 

@@ -53,7 +53,10 @@ def run_simulation( results_path: str = "output",
     total_steps = warming_steps + simulation_steps
     
     assert pdb_fname is not None and system_fname is not None, "To run a simulation in OpenMM both a pdb file and system.xml must be provided."
-    pdb = app.PDBFile(pdb_fname)
+    if pdb_fname.endswith(".cif"):
+        pdb = app.PDBxFile(pdb_fname)
+    else:
+        pdb = app.PDBFile(pdb_fname)
     topology = pdb.topology
     positions = pdb.positions
     system = openmm.XmlSerializer.deserialize(open(system_fname).read())
