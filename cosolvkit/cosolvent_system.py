@@ -478,7 +478,7 @@ class CosolventSystem(object):
         res = [r.name for r in self.modeller.topology.residues()]
         return res.count('HOH')
  
-     def _setup_new_topology(self, cosolvents_positions: dict) -> app.Modeller:
+    def _setup_new_topology(self, cosolvents_positions: dict) -> app.Modeller:
         """Returns a new modeller with the topolgy with the new molecules specified
 
         :param cosolvents_positions: keys are cosolvent molecules and values are lists of position of the new molecules to add
@@ -522,7 +522,7 @@ class CosolventSystem(object):
             self.modeller.add(new_top, molecules_positions)
             
         return self.modeller
-     
+
     def _create_system(self, forcefield: app.forcefield, topology: app.Topology) -> System:
         """Returns system created from the Forcefield and the Topology.
 
