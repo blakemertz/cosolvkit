@@ -13,7 +13,19 @@ and open the pull request.
 |---|---|
 | Local branch | `update_cosolvkit` |
 | Remote target | `origin/update_cosolvkit` → PR against `master` |
-| Commits ahead of `origin/update_cosolvkit` | 3 |
+| Rebased onto | fork's `master` (`blakemertz/cosolvkit@ce719a0`), 2026-09-18 |
+| Commits ahead of `origin/update_cosolvkit` | 16 |
+| Commits ahead of rebase base (`ce719a0`) | 5 |
+
+> **Note:** this branch was rebased on 2026-09-18 onto the current `master` from
+> the fork (`blakemertz/cosolvkit`), which had diverged with 11 commits not
+> previously in this branch's history — including configurable neutralizing
+> ions (`positive_ion`/`negative_ion`), a fix for SMARTS atom-type matching
+> falling back to plain density (`06074f7`, issue #48), the
+> `upload-artifact@v4` bump, and a rewrite of `_setup_new_topology()`.
+> All commit hashes below changed as a result. The local `origin/master` ref
+> in this clone is stale (`9ac8630`) — run `git fetch origin` before opening
+> the PR to confirm this branch is still current against `forlilab/cosolvkit`.
 
 ---
 
@@ -192,6 +204,36 @@ Single-trajectory usage is unchanged — a bare string is wrapped in a list inte
 
 ---
 
+## Commit 4 — Fix indentation error inherited from the rebase (`67d329c`)
+
+**Date:** 2026-09-18
+**Files changed:** `cosolvkit/cosolvent_system.py`
+
+### Problem
+
+The fork's `master` commit `83474f3` ("Simplify `_setup_new_topology` by
+removing receptor params and setup of chain ids for the cosolvent molecules")
+left `_setup_new_topology` indented with 5 spaces instead of 4. This is a
+syntax error and made `cosolvkit/cosolvent_system.py` — and therefore the
+whole `cosolvkit` package — fail to import:
+
+```
+IndentationError: unindent does not match any outer indentation level (cosolvent_system.py, line 479)
+```
+
+This bug was pulled into `update_cosolvkit` by rebasing onto the fork's
+`master` (see Branch information above); it did not originate in this
+branch's own commits.
+
+### Fix
+
+- Corrected the `def _setup_new_topology(...)` indentation to 4 spaces.
+- Removed a stray whitespace-only line left by the same hunk.
+- Verified `python3 -m py_compile` and `import cosolvkit.cosolvent_system`
+  both succeed afterward, for every module in the package.
+
+---
+
 ## How to push and open the pull request
 
 Once you have been added as a collaborator to `forlilab/cosolvkit`:
@@ -230,6 +272,12 @@ gh pr create \
   --body "$(cat <<'EOF'
 ## Summary
 
+- **Indentation fix**: corrects an \`IndentationError\` in
+  \`_setup_new_topology()\` (introduced by \`83474f3\`) that currently makes
+  \`cosolvkit/cosolvent_system.py\` fail to import on \`master\`. Since this
+  breaks the package for everyone on \`master\` right now, consider cherry-picking
+  just this fix as its own hotfix PR ahead of the rest.
+
 - **GPU selection**: add \`--gpu_id\` CLI flag and \`gpu_id\` parameter to
   \`run_simulation()\` so CUDA simulations can be directed to a specific
   device, enabling concurrent runs on multi-GPU workstations.
@@ -256,6 +304,8 @@ gh pr create \
 
 ## Test plan
 
+- [x] \`python3 -m py_compile\` and \`import cosolvkit.cosolvent_system\`
+      succeed (previously failed with \`IndentationError\` on \`master\`)
 - [ ] Run \`create_cosolvent_system\` with \`--gpu_id 1\` on a multi-GPU
       machine and confirm the process binds to the correct device (\`nvidia-smi\`)
 - [ ] Build a system with >99,999 atoms and confirm \`system.cif\` is
@@ -283,8 +333,13 @@ gh pr list   # confirm the PR appears
 
 ## Commit hashes (for reference)
 
+Current as of the 2026-09-18 rebase onto the fork's `master` (`ce719a0`).
+These will change again if the branch is rebased or amended further.
+
 | Hash | Description |
 |---|---|
-| `8418c91` | Add gpu_id parameter to enable per-GPU simulation assignment |
-| `9ea962b` | Switch OpenMM position output from PDB to mmCIF for large system support |
-| `3d8e2c5` | Fix several analysis.py bugs and add multi-trajectory support |
+| `507bbc3` | Add gpu_id parameter to enable per-GPU simulation assignment |
+| `5ed0e7b` | Switch OpenMM position output from PDB to mmCIF for large system support |
+| `db6377c` | Fix several analysis.py bugs and add multi-trajectory support |
+| `e8fb8da` | Add CHANGES_PENDING_PR.md documenting pending commits and PR instructions |
+| `67d329c` | Fix indentation error in `_setup_new_topology` introduced upstream |
