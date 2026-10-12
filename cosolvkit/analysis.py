@@ -603,10 +603,21 @@ class Report:
         rmsf_df = pd.DataFrame({'residue': residues, 'RMSF': rmsf.results.rmsf})
         rmsf_df.index.name = 'atom'
 
+        # B-factor = mean heavy-atom RMSF of the residue (same quantity as rmsf_by_residue.png),
+        # so PyMOL's cartoon coloring reflects per-residue flexibility.
+        # rmsf.results.rmsf is per atom, it must not be zipped with selection.residues.
         self.universe.add_TopologyAttr('tempfactors') # add empty attribute for all atoms
-        for residue, r_value in zip(selection.residues, rmsf.results.rmsf):
-            residue.atoms.tempfactors = r_value
-        
+        resindices = selection.resindices
+        residue_rmsf = np.bincount(resindices, weights=rmsf.results.rmsf) / np.bincount(resindices)
+        selection.tempfactors = residue_rmsf[resindices]
+
+        # write the representative frame: the trajectory frame closest (lowest RMSD) to the average
+        # structure. Unlike the raw average it is a physical conformation, and its coordinates are
+        # written unfitted so it stays in the frame of the (pre-aligned) trajectory and density maps.
+        closest_frame = int(np.argmin(R.results.rmsd[:, 3]))
+        self.logger.info(f"Representative structure: frame {closest_frame} "
+                         f"(RMSD to average structure {R.results.rmsd[closest_frame, 3]:.3f} A)")
+        self.universe.trajectory[closest_frame]
         selection.write(self.avg_pdb_path)
         rmsf_df.to_csv(os.path.join(self.out_path, "rmsf_by_atom.csv"))    
         self._plot_rmsf(rmsf_df)
@@ -1035,7 +1046,7 @@ class Report:
         
         if not os.path.exists(self.avg_pdb_path):
             # if the average pdb was not generated in the report, we generate it here
-            self._rmsf_analysis(avg_selection='protein')
+            self._rmsf_analysis(avg_selection='protein', align_selection='protein and name CA')
 
         structures = {'average_structure': self.avg_pdb_path}
         if reference_pdb is not None and reference_pdb.endswith('.pdb'):
