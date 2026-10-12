@@ -14,8 +14,8 @@ and open the pull request.
 | Local branch | `update_cosolvkit` |
 | Remote target | `origin/update_cosolvkit` → PR against `master` |
 | Rebased onto | fork's `master` (`blakemertz/cosolvkit@ce719a0`), 2026-09-18 |
-| Commits ahead of `origin/update_cosolvkit` | 16 |
-| Commits ahead of rebase base (`ce719a0`) | 5 |
+| Commits ahead of `origin/update_cosolvkit` | 17 (as of 2026-10-12) |
+| Commits ahead of rebase base (`ce719a0`) | 12 (as of 2026-10-12) |
 
 > **Note:** this branch was rebased on 2026-09-18 onto the current `master` from
 > the fork (`blakemertz/cosolvkit`), which had diverged with 11 commits not
@@ -234,6 +234,82 @@ branch's own commits.
 
 ---
 
+## Commit 5 — Exclude explicit hydrogens from DACAr typing; per-atom typing (`a309619`)
+
+**Date:** 2026-10-12
+**Files changed:** `cosolvkit/data/dacar_atomtypes.json`, `cosolvkit/analysis.py`
+
+### Problem
+
+- The HBD/HBA SMARTS come from Daylight's examples, which assume implicit
+  hydrogens. MD topologies have explicit hydrogens, so every H matched HBA.
+  On three test cosolvents, 77–100% of HBA counts came from hydrogens,
+  diluting the heteroatom signal in the acceptor maps.
+- Types were propagated by force-field type name, so atoms sharing a type
+  name could end up in the wrong category.
+- N₀ for the free energy counted every atom a SMARTS matched, including atoms
+  already assigned to an earlier category (e.g. 10 HBA atoms per molecule
+  instead of 1 for 2,4-diaminopyridine).
+
+### Fix
+
+- Added `#1` to the excluded elements of the HBD and HBA patterns.
+- Each atom is assigned to the first definition whose SMARTS matches it.
+- N₀ uses the number of atoms actually assigned to each category. The atoms of
+  each category are logged for the first molecule.
+
+---
+
+## Commit 6 — Fix RMSF B-factors; write the frame closest to the average (`4cdd59b`)
+
+**Date:** 2026-10-12
+**Files changed:** `cosolvkit/analysis.py`
+
+### Problem
+
+`_rmsf_analysis` zipped the per-atom RMSF array with the residues, so the B-factors
+in `averaged_trajectory.pdb` (and the PyMOL RMSF coloring) belonged to the wrong
+residues.
+
+### Fix
+
+- B-factor = mean RMSF of the atom's residue, the same quantity as `rmsf_by_residue.png`.
+- `averaged_trajectory.pdb` is now the trajectory frame with the lowest RMSD
+  to the average structure: a physical conformation in the trajectory frame.
+- The `generate_pymol_session` fallback aligns on CA atoms.
+
+---
+
+## Commit 7 — Optional center-of-mass occupancy maps (`05ee8fc`)
+
+**Date:** 2026-10-12
+**Files changed:** `cosolvkit/analysis.py`
+
+`Analysis(com_density=True)` and `Report.generate_density_maps(com_density=True)`
+also write `map_com_<RES>.dx`: one count per cosolvent molecule per frame at its
+center of mass, independent of molecule size and atom typing. Default off, so
+existing behavior is unchanged.
+
+---
+
+## Commit 8 — Hotspot detection module (`43d7792`)
+
+**Date:** 2026-10-12
+**Files changed:** `cosolvkit/analysis_hotspot.py` (new)
+
+`python -m cosolvkit.analysis_hotspot` reads the density maps of one or more
+cosolvent runs, converts them to Z-scores, and finds hotspots:
+
+- `--method overlap` (default): per-probe single-linkage spots, merged when
+  spots of different probes share grid points.
+- `--method dbscan`: points of all probes pooled and clustered with DBSCAN.
+
+Works on atom-type, raw or center-of-mass maps (`-k`). Outputs a ranked CSV with
+per-probe score/max columns, nearby residues of a reference structure, a PDB and
+a PyMOL script. Requires scikit-learn (already in `environment.yml`).
+
+---
+
 ## How to push and open the pull request
 
 Once you have been added as a collaborator to `forlilab/cosolvkit`:
@@ -291,6 +367,16 @@ gh pr create \
   \`traj_file\` and \`statistics_file\`, concatenating trajectories via
   MDAnalysis ChainReader and \`pd.concat\` respectively.
 
+- **Atom typing**: DACAr SMARTS exclude explicit hydrogens (every H was
+  typed HBA); atoms typed individually; free-energy N₀ counts assigned atoms.
+
+- **RMSF / representative structure**: B-factors carry the correct
+  per-residue RMSF; \`averaged_trajectory.pdb\` is the frame closest to the
+  average structure.
+
+- **Center-of-mass maps** (\`com_density=True\`) and a new hotspot
+  detection module, \`cosolvkit.analysis_hotspot\` (overlap or DBSCAN).
+
 - **Analysis bug fixes**:
   - \`cosolvent_names\` coerced from bare string to list, preventing
     character-by-character iteration and downstream \`IndexError\`
@@ -343,3 +429,7 @@ These will change again if the branch is rebased or amended further.
 | `db6377c` | Fix several analysis.py bugs and add multi-trajectory support |
 | `e8fb8da` | Add CHANGES_PENDING_PR.md documenting pending commits and PR instructions |
 | `67d329c` | Fix indentation error in `_setup_new_topology` introduced upstream |
+| `a309619` | Exclude explicit hydrogens from DACAr typing and assign atom types per atom |
+| `4cdd59b` | Fix RMSF B-factors and write the frame closest to the average structure |
+| `05ee8fc` | Add optional center-of-mass occupancy maps |
+| `43d7792` | Add analysis_hotspot: hotspot detection from cosolvent density maps |
