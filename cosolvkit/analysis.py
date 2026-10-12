@@ -206,6 +206,7 @@ class Analysis(AnalysisBase):
                         gridsize:float=0.5, 
                         use_atomtypes:bool=True, 
                         atomtypes_definitions:dict=None, 
+                        com_density:bool=False,
                         **kwargs):
         super(Analysis, self).__init__(atomgroup.universe.trajectory, **kwargs)
         
@@ -221,6 +222,10 @@ class Analysis(AnalysisBase):
         self._box_size = None
         self.use_atomtypes = use_atomtypes
         self.atomtypes_definitions = atomtypes_definitions
+        # Also histogram the center of mass of each cosolvent molecule (residue): every molecule
+        # contributes one count per frame, independent of its size and of the atom typing
+        self.com_density = com_density
+        self._com_histogram = None
 
         if use_atomtypes and atomtypes_definitions is None:
             self.logger.error("Error: Atom types definitions are required for atom type density analysis.")
@@ -228,11 +233,14 @@ class Analysis(AnalysisBase):
 
     def _prepare(self):
         self._positions = []
+        self._com_positions = []
         self._centers = []
         self._dimensions = []
 
     def _single_frame(self):
         self._positions.append(self._ag.atoms.positions.astype(float))
+        if self.com_density:
+            self._com_positions.append(self._ag.center_of_mass(compound='residues'))
         self._dimensions.append(self._u.dimensions[:3])
         self._centers.append(self._u.atoms.center_of_geometry())
         self._nframes += 1
@@ -251,6 +259,10 @@ class Analysis(AnalysisBase):
                     np.linspace(0, self._box_size[1], num=hbins[1] + 1, endpoint=True) + (y - sd[1]),
                     np.linspace(0, self._box_size[2], num=hbins[2] + 1, endpoint=True) + (z - sd[2]))
         origin = (self._edges[0][0], self._edges[1][0], self._edges[2][0])
+
+        if self.com_density:
+            com_hist, _ = np.histogramdd(np.concatenate(self._com_positions), bins=self._edges)
+            self._com_histogram = Grid(com_hist, origin=origin, delta=self._gridsize)
 
         # get the mask of accesible voxels that will be used for the free energy calculation
         self._build_accessible_mask()
@@ -471,6 +483,14 @@ class Analysis(AnalysisBase):
                 _export(density_fname, grid, gridsize, center, box_size)
         else:
             _export(fname, self._density, gridsize, center, box_size)
+
+    def export_com_density(self, fname, gridsize=0.5, center=None, box_size=None):
+        """ Export the center of mass occupancy map (raw counts of molecule centers per voxel)
+        """
+        if self._com_histogram is None:
+            self.logger.error("No center of mass histogram. Use com_density=True.")
+            return
+        _export(fname, self._com_histogram, gridsize, center, box_size)
 
     def export_atomic_grid_free_energy(self, fname, gridsize=0.5, center=None, box_size=None):
         """ Export atomic grid free energy, either for the total free energy or for each atom type
@@ -762,6 +782,7 @@ class Report:
                               atomtypes_definitions:str=None, 
                               gridsize:float=0.5,
                               temperature:float=None, 
+                              com_density:bool=False,
                               ):
         """Generates the density maps for all the cosolvents especified. It is possible to use atomtypes for the analysis.
         If no atomtypes are specified, the default atomtypes are used: HBD, HBA, Car. 
@@ -775,6 +796,9 @@ class Report:
         :type gridsize: float, optional
         :param temperature: temperature to use for the analysis, defaults to None
         :type temperature: float, optional
+        :param com_density: if True, also write map_com_<RES>.dx, the occupancy of the center of mass of
+            each cosolvent molecule (one count per molecule and frame), defaults to False
+        :type com_density: bool, optional
 
         """
         self.logger.info("Generating density maps...")
@@ -805,9 +829,12 @@ class Report:
                                 gridsize=gridsize,
                                 use_atomtypes=use_atomtypes, 
                                 atomtypes_definitions=atomtypes_definitions, 
+                                com_density=com_density,
                                 verbose=True)
             analysis.run()
             analysis.export_density(os.path.join(self.out_path, f"map_rawdensity_{cosolvent}.dx"))
+            if com_density:
+                analysis.export_com_density(os.path.join(self.out_path, f"map_com_{cosolvent}.dx"))
             analysis.atomic_grid_free_energy(temperature, smoothing=True)
             analysis.export_atomic_grid_free_energy(os.path.join(self.out_path, f"map_agfe_{cosolvent}.dx"))
 
