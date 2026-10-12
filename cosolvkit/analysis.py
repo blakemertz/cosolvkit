@@ -378,30 +378,33 @@ class Analysis(AnalysisBase):
         :rtype: np.ndarray
         """
         
-        # select atoms based on SMARTS patterns
-        self.atomtypes_dict = {atomtype['atype']: self._ag.select_atoms(f"smarts {atomtype['smarts']}") for atomtype in atomtypes_definitions}
-        # Count the number of atoms by type, this is required for the free energy calculation
-        self._n_atoms_by_type = {key: ag.n_atoms for key, ag in self.atomtypes_dict.items()}
+        mapped_atomtypes = np.zeros(self._ag.n_atoms, dtype=object)
+
+        # Assign each atom to the first definition whose SMARTS pattern matches it (per atom, not per
+        # force-field type name, which can be shared by atoms of different categories)
+        self.atomtypes_dict = {}
+        for atomtype in atomtypes_definitions:
+            key = atomtype['atype']
+            matched = self._ag.select_atoms(f"smarts {atomtype['smarts']}")
+            mask = np.isin(self._ag.indices, matched.indices) & (mapped_atomtypes == 0)
+            mapped_atomtypes[mask] = key
+            self.atomtypes_dict[key] = np.unique(self._ag.types[mask])
+
+        # Count the atoms assigned to each type: N0 of the free energy calculation. Atoms matched by
+        # several patterns are only counted for the type they were assigned to.
+        self._n_atoms_by_type = {key: int(np.sum(mapped_atomtypes == key)) for key in self.atomtypes_dict}
         self.logger.debug(f"Atom types count: {self._n_atoms_by_type}")
 
-        # Warn if any SMARTS pattern matched no atoms in the cosolvent molecule
+        first_residue = np.isin(self._ag.indices, self._ag.residues[0].atoms.indices)
         for key, n in self._n_atoms_by_type.items():
             if n == 0:
                 self.logger.warning(
-                    f"SMARTS pattern for atom type '{key}' matched no atoms in the cosolvent. "
+                    f"SMARTS pattern for atom type '{key}' matched no (unassigned) atoms in the cosolvent. "
                     f"Check that the SMARTS is appropriate for this molecule."
                 )
-
-        self.atomtypes_dict = {key: np.unique(ag.atoms.types) for key, ag in self.atomtypes_dict.items()}
-
-        mapped_atomtypes = np.zeros_like(self._ag.atoms.types, dtype=object)
-
-        # Map atom types to their respective categories
-        for atom in self._ag.atoms.types:
-            for key, atomtypes in self.atomtypes_dict.items():
-                if atom in atomtypes:
-                    mapped_atomtypes[np.where(self._ag.atoms.types == atom)] = key
-                    break
+            else:
+                names = self._ag.names[first_residue & (mapped_atomtypes == key)]
+                self.logger.info(f"Atom type {key}: {n} atoms, per molecule {list(names)}")
 
         # Warn about atoms that could not be assigned to any SMARTS-defined type
         unmatched_mask = mapped_atomtypes == 0
